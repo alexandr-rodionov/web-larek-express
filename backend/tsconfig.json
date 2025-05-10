@@ -15,7 +15,15 @@
 		/* Type Checking */
 		"strict": true /* Enable all strict type-checking options. */,
 		/* Completeness */
-		"skipLibCheck": true /* Skip type checking all .d.ts files. */
+		"skipLibCheck": true /* Skip type checking all .d.ts files. */,
+		"paths": {
+			"@controllers": ["controllers"],
+			"@errors": ["errors"],
+			"@middlewares": ["middlewares"],
+			"@models": ["models"],
+			"@routes": ["routes"],
+			"@utils": ["utils"]
+		},
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules"]
