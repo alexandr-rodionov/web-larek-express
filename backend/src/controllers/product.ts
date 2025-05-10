@@ -15,11 +15,8 @@ export const getProducts = (
   res: Response,
   next: NextFunction
 ) => {
-  return Product.find({})
-    .then(products => res
-      .status(statusCode.OK)
-      .send({ items: products, total: products.length })
-    )
+  Product.find({})
+    .then((products) => res.status(statusCode.OK).send({ items: products, total: products.length }))
     .catch(err => next(err));
 }
 
@@ -32,7 +29,7 @@ export const createProduct = (
   const { title, image, category, description, price } = req.body;
 
   Product.create({ title, image, category, description, price })
-    .then(async createdProduct => {
+    .then(async (createdProduct) => {
       if (image?.fileName) {
         const baseName = path.basename(image.fileName);
         const oldPath = path.join(__dirname, '..', tempUploadDir, baseName);

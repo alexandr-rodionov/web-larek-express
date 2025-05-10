@@ -52,10 +52,11 @@ interface DecodedToken {
 export const verifyJwt = (token: string): Promise<DecodedToken> => {
   return new Promise((resolve, reject) => {
     jwt.verify(token, jwtSecret, (err, decoded) => {
-      if (err || !decoded || typeof decoded !== 'object' || !decoded._id)
+      if (err || !decoded || typeof decoded !== 'object' || !decoded._id) {
         reject(new Error('Токен устарел или неверен'));
-      else
+      } else {
         resolve(decoded as DecodedToken);
+      }
     });
   });
 };

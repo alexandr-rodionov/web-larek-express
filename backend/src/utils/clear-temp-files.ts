@@ -15,9 +15,9 @@ export const clearOldFiles = async () => {
 
     if ((Date.now() - stats.birthtimeMs) > 24 * 60 * 60 * 1000) {
       await fs.unlink(fullPath);
-    }
-  }
-}
+    };
+  };
+};
 
 cron.schedule('* */24 * * *', () => {
   clearOldFiles().catch(console.error);

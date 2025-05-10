@@ -35,8 +35,9 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  if (!file.mimetype.match(/jpg|jpeg|png/g))
+  if (!file.mimetype.match(/jpg|jpeg|png/g)) {
     return cb(new Error('Только JPG/JPEG/PNG разрешены!'));
+  }
 
   cb(null, true);
 };

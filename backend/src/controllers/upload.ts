@@ -3,7 +3,6 @@ import { NextFunction, Request, Response } from 'express';
 import config from '../config';
 import { statusCode } from '../utils';
 
-
 const { uploadDir } = config;
 
 export const uploadFile = (

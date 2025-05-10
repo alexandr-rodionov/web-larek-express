@@ -13,10 +13,9 @@ export const createOrder = (
 ) => {
   const { total, items } = req.body;
 
-  if(!items?.length)
-    return next(new BadRequestError('В заказе нет товара'));
+  if(!items?.length) return next(new BadRequestError('В заказе нет товара'));
 
-  return Product.find({ _id: { $in: items }})
+  Product.find({ _id: { $in: items }})
     .then((products) => {
       if (products.length !== items.length) {
         const missingProducts = _.differenceWith(
@@ -35,8 +34,9 @@ export const createOrder = (
       }
 
       const calculatedTotal =  _.sumBy(products, 'price');
-      if (Math.abs(calculatedTotal - total) > Number.EPSILON)
+      if (Math.abs(calculatedTotal - total) > Number.EPSILON) {
         return next(new BadRequestError('Ошибка в расчёте суммы заказа'));
+      }
 
       const orderId = faker.string.uuid();
       res.status(statusCode.CREATED).send({ id: orderId, total: calculatedTotal});
