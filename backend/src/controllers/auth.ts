@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { User } from '../models';
 import {
   generateToken,
@@ -7,23 +7,29 @@ import {
   setRefreshCookie,
   clearRefreshCookie,
   verifyJwt,
-  statusCode
+  statusCode,
 } from '../utils';
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../errors';
 
 // LOGIN
-export const login = (req: Request, res: Response) => {
+export const login = (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
 
   User.findOne({ email }).select('+password')
     .then((user) => {
       if (!user) {
-        return res.status(statusCode.UNAUTHORIZED).send({ success: false, message: 'Email или пароль указаны неверно' });
+        return next(new UnauthorizedError('Email или пароль указаны неверно'));
       }
 
       checkPassword(password, user.password)
         .then((isMatch) => {
           if (!isMatch) {
-            return res.status(statusCode.UNAUTHORIZED).send({ success: false, message: 'Email или пароль указаны неверно' });
+            return next(new UnauthorizedError('Email или пароль указаны неверно'));
           }
 
           const { accessToken, refreshToken } = generateToken(user._id);
@@ -37,68 +43,63 @@ export const login = (req: Request, res: Response) => {
                 accessToken
               });
             })
-            .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при сохранении токена' }));
+            .catch((err) => next(err));
         })
-        .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при проверке пароля' }));
+        .catch((err) => next(err));
     })
-    .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при обработке запроса' }));
+    .catch((err) => next(err));
 };
 
 // REGISTER
-export const register = (req: Request, res: Response) => {
+export const register = (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password } = req.body;
 
-  User.findOne({ email })
-    .then((existingUser) => {
-      if (existingUser) {
-        return res.status(statusCode.CONFLICT).send({ success: false, message: 'Пользователь с указанным email уже существует' });
-      }
+  hashPassword(password)
+    .then(async (hashedPassword) => {
+      const newUser = new User({ name, email, password: hashedPassword });
+      await newUser.save();
 
-      hashPassword(password)
-        .then((hashedPassword) => {
-          const newUser = new User({ name, email, password: hashedPassword });
+      const { accessToken, refreshToken } = generateToken(newUser._id);
 
-          newUser.save()
-            .then((savedUser) => {
-              const { accessToken, refreshToken } = generateToken(savedUser._id);
+      newUser.tokens.push({ token: refreshToken });
 
-              User.updateOne({ _id: savedUser._id }, { $push: { tokens: { token: refreshToken } } })
-                .then(() => {
-                  setRefreshCookie(res, refreshToken);
-                  res.status(statusCode.CREATED).send({
-                    user: { email: savedUser.email, name: savedUser.name },
-                    success: true,
-                    accessToken
-                  });
-                })
-                .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при сохранении токена' }));
-            })
-            .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при регистрации пользователя' }));
-        })
-        .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при хэширование пароля' }));
+      await newUser.save();
+
+      setRefreshCookie(res, refreshToken);
+
+      res.status(statusCode.CREATED).send({
+        user: { email: newUser.email, name: newUser.name },
+        success: true,
+        accessToken
+      });
     })
-    .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при обработке запроса' }));
+    .catch((err) => {
+      if (err instanceof Error && err.message.includes('E11000')) {
+        return next(new ConflictError('Пользователь с указанным email уже существует', false));
+      }
+      return next(err);
+    });
 };
 
 // REFRESH_TOKEN
-export const refreshAccessToken = (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refreshToken;
+export const refreshAccessToken = (req: Request, res: Response, next: NextFunction) => {
+  const { refreshToken } = req.cookies;
 
   if (!refreshToken) {
-    return res.status(statusCode.UNAUTHORIZED).send({ success: false, message: 'Отсутствует refresh-токен' });
+    return next(new UnauthorizedError('Отсутствует refresh-токен'));
   }
 
   verifyJwt(refreshToken)
     .then((decoded) => {
       User.findById(decoded._id)
-        .then(user => {
+        .then((user) => {
           if (!user) {
-            return res.status(statusCode.NOT_FOUND).send({ success: false, message: 'Пользователь не найден' });
+            return next(new NotFoundError('Пользователь не найден', false));
           }
 
           const hasOldToken = user.tokens.some((t) => t.token === refreshToken);
           if (!hasOldToken) {
-            return res.status(statusCode.UNAUTHORIZED).send({ success: false, message: 'Refresh-токен больше не действителен' });
+            return next(new UnauthorizedError('Refresh-токен больше не действителен'));
           }
 
           const { accessToken, refreshToken: newRefreshToken } = generateToken(user._id);
@@ -112,19 +113,19 @@ export const refreshAccessToken = (req: Request, res: Response) => {
                 accessToken
               });
             })
-            .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при обновлении токена' }));
+            .catch((err) => next(err));
         })
-        .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при обработке запроса' }));
+        .catch((err) => next(err));
     })
-    .catch((err) => res.status(statusCode.UNAUTHORIZED).send({ success: false, message: err.message }));
+    .catch((err) => next(err));
 };
 
 // LOGOUT
-export const logout = (req: Request, res: Response) => {
+export const logout = (req: Request, res: Response, next: NextFunction) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
-    return res.status(statusCode.BAD_REQUEST).send({ success: false, message: 'Отсутствует refresh-токен' });
+    return next(new BadRequestError('Отсутствует refresh-токен', false));
   }
 
   User.findOneAndUpdate(
@@ -134,21 +135,21 @@ export const logout = (req: Request, res: Response) => {
   )
     .then(user => {
       if (!user) {
-        return res.status(404).send({ success: false, message: 'Пользователь не найден' });
+        return next(new NotFoundError('Пользователь не найден', false));
       }
 
       clearRefreshCookie(res);
       res.status(statusCode.OK).send({ success: true });
     })
-    .catch(() => res.status(statusCode.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Ошибка при обработке запроса' }));
+    .catch((err) => next(err));
 };
 
 // CURRENT_USER
-export const getCurrentUser = (req: Request, res: Response) => {
+export const getCurrentUser = (req: Request, res: Response, next: NextFunction) => {
   const user = req.user;
 
   if (!user) {
-    return res.status(statusCode.NOT_FOUND).send({ success: false, message: 'Пользователь не найден' });
+    return next(new NotFoundError('Пользователь не найден', false));
   }
 
   res.status(statusCode.OK).send({

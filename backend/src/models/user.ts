@@ -16,7 +16,6 @@ const UserSchema = new mongoose.Schema<IUser>({
   password: {
     type: String,
     required: [true, 'Поле "password" должно быть заполнено'],
-    minlength: [6, 'Минимальная длина поля "password" - 6'],
     select: false
   },
   tokens: [

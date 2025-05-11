@@ -1,10 +1,10 @@
-import _ from "lodash";
-import { faker } from "@faker-js/faker";
-import { NextFunction, Request, Response } from "express";
-import { Error as MongooseError } from "mongoose";
-import { Product } from "../models";
-import { statusCode } from "../utils";
-import { BadRequestError } from "../errors";
+import _ from 'lodash';
+import { faker } from '@faker-js/faker';
+import { NextFunction, Request, Response } from 'express';
+import { Error as MongooseError } from 'mongoose';
+import { Product } from '../models';
+import { statusCode } from '../utils';
+import { BadRequestError } from '../errors';
 
 export const createOrder = (
   req: Request,
@@ -13,9 +13,9 @@ export const createOrder = (
 ) => {
   const { total, items } = req.body;
 
-  if(!items?.length) return next(new BadRequestError('В заказе нет товара'));
+  if (!items?.length) return next(new BadRequestError('В заказе нет товара'));
 
-  Product.find({ _id: { $in: items }})
+  Product.find({ _id: { $in: items } })
     .then((products) => {
       if (products.length !== items.length) {
         const missingProducts = _.differenceWith(
@@ -33,13 +33,13 @@ export const createOrder = (
         );
       }
 
-      const calculatedTotal =  _.sumBy(products, 'price');
+      const calculatedTotal = _.sumBy(products, 'price');
       if (Math.abs(calculatedTotal - total) > Number.EPSILON) {
         return next(new BadRequestError('Ошибка в расчёте суммы заказа'));
       }
 
       const orderId = faker.string.uuid();
-      res.status(statusCode.CREATED).send({ id: orderId, total: calculatedTotal});
+      res.status(statusCode.CREATED).send({ id: orderId, total: calculatedTotal });
     })
     .catch((err) => {
       if (err instanceof MongooseError.ValidationError) {
